@@ -104,6 +104,12 @@
     box-shadow:0 1px 4px rgba(0,0,0,0.2);
   }
 
+  /* Make canvas look like a vertical card on mobile */
+  canvas{
+    display:block;
+    margin:0 auto;
+  }
+
   /* ===== Mobile layout ===== */
   @media (max-width: 640px){
     #howto{
@@ -141,6 +147,7 @@
     }
     canvas{
       touch-action:none; /* helps dragging on mobile */
+      margin-top:10px;
     }
     #mobileBar{
       display:flex;
@@ -183,8 +190,8 @@
 
 <script>
 // ====== Multilingual Fridge Poetry with Language Picker ======
-let magnets, selected=null, offset, scaler, bg;
-const STORAGE_KEY="magnets_lang_picker_v1_1";
+let magnets, selected=null, offset, scaler, bg, canvas;
+const STORAGE_KEY="magnets_lang_picker_v1_2";
 const StorageShim={
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
   get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
@@ -204,6 +211,8 @@ let centerBandPx=CENTER_BAND;
 function recomputeCenterBand(){
   centerBandPx=CENTER_BAND*(typeof scaler!=="undefined"?scaler:1);
 }
+
+function isMobile(){ return windowWidth <= 640; }
 
 // language / lexicon
 const LANG_ORDER=["EN","FR","ZH","JA","KO"];
@@ -579,7 +588,7 @@ function initHomesFromCurrentPos(){
 // UI drawing
 function drawButtonsUI(){
   // hide canvas buttons on small screens (mobile toolbar takes over)
-  if(windowWidth <= 640) return;
+  if(isMobile()) return;
   push();
   noStroke();
   fill(255,240);
@@ -596,9 +605,24 @@ function hit(r,x,y){
   return (x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h);
 }
 
+// choose canvas size depending on device
+function chooseCanvasSize(){
+  if(isMobile()){
+    const cw = Math.min(windowWidth - 20, 420); // leave a little side margin
+    const ch = Math.min(windowHeight * 0.6, cw * 1.6); // tall-ish postcard
+    return {w: cw, h: ch};
+  }else{
+    return {w: windowWidth, h: windowHeight};
+  }
+}
+
 // p5 lifecycle
 function setup(){
-  createCanvas(windowWidth,windowHeight);
+  const size = chooseCanvasSize();
+  canvas = createCanvas(size.w, size.h);
+  canvas.style('display','block');
+  canvas.style('margin','0 auto');
+
   scaler=height/628;
   noSmooth();
   recomputeCenterBand();
@@ -630,7 +654,7 @@ function draw(){
 function mousePressed(){
   dragMoved=false;
   // desktop buttons only
-  if(windowWidth > 640){
+  if(!isMobile()){
     if(hit(UI.shuffle,mouseX,mouseY)){shufflePoem();return}
     if(hit(UI.reset,mouseX,mouseY)){resetEverything();return}
   }
@@ -715,7 +739,8 @@ function resetEverything(){
   makeEightWordPoem();
 }
 function windowResized(){
-  resizeCanvas(windowWidth,windowHeight);
+  const size = chooseCanvasSize();
+  resizeCanvas(size.w, size.h);
   scaler=height/628;
   recomputeCenterBand();
   rebuildLexiconFromSelection();
