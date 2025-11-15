@@ -496,7 +496,14 @@ function rebuildLexiconFromSelection(){
 }
 
 // ===== Poem builder =====
-function makeEightWordPoem(){
+function poemCenterY(){
+  if (isMobile()) {
+    return -height * 0.18;   // Lift poem upward on mobile
+  }
+  return 0;
+}
+  
+  function makeEightWordPoem(){
   for(let m of magnets){
     if(m.isInPoem){
       m.isInPoem=false;
