@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fridge Poetry — Pick Your Languages</title>
+<title>Fridge Poetry — Multilingual</title>
 <meta name="description" content="Draggy fridge-poetry magnets with selectable languages (JA, ZH, EN, FR, KO).">
 <style>
   html,body{
@@ -43,7 +43,6 @@
     padding:10px 12px;
     z-index:12;
     font-size:14px;
-    /* for slide animation */
     transition:transform .25s ease, opacity .25s ease;
   }
   #langPanel .row{
@@ -92,7 +91,7 @@
     left:10px;
     right:10px;
     bottom:10px;
-    display:none; /* enabled in media query */
+    display:none;
     z-index:20;
     justify-content:center;
     gap:10px;
@@ -113,7 +112,6 @@
     box-shadow:0 1px 4px rgba(0,0,0,0.2);
   }
 
-  /* Make canvas look like a vertical card on mobile */
   canvas{
     display:block;
     margin:0 auto;
@@ -131,7 +129,7 @@
     }
     #credits{
       right:10px;
-      bottom:55px; /* lifted so it doesn’t collide with toolbar */
+      bottom:55px;
       font-size:10px;
       padding:5px 8px;
     }
@@ -155,7 +153,7 @@
       font-size:12px;
     }
     canvas{
-      touch-action:none; /* helps dragging on mobile */
+      touch-action:none;
       margin-top:10px;
     }
     #mobileBar{
@@ -167,7 +165,7 @@
 </head>
 <body>
 <div id="howto">
-  <b>How to:</b> Choose languages (top-right). Drag magnets. Click a word in the center line to swap with the same part-of-speech. Use buttons to shuffle or reset.
+  <b>How to:</b> Choose languages (top-right). Drag magnets. Click a word in the center line to swap with the same part-of-speech. Swipe down on the language box to hide, swipe up anywhere to show.
 </div>
 <div id="credits">Fridge Poetry — JA + ZH + EN + FR + KO</div>
 
@@ -198,9 +196,10 @@
 </div>
 
 <script>
-// ====== Multilingual Fridge Poetry with Language Picker ======
-let magnets, selected=null, offset, scaler, bg, canvas;
-const STORAGE_KEY="magnets_lang_picker_v1_3";
+// ====== Multilingual Fridge Poetry with Mobile-friendly Magnets ======
+let magnets = [];
+let selected = null, offset, scaler, bg, canvas;
+const STORAGE_KEY="magnets_lang_picker_v1_4";
 const StorageShim={
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
   get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
@@ -211,6 +210,7 @@ const UI={
   shuffle:{x:10,y:10,w:200,h:34,label:"Shuffle Poem"},
   reset:{x:10,y:54,w:200,h:34,label:"Reset (Scatter)"}
 };
+
 const SPRING_K=.12,DAMPING=.75,ANG_K=.12,ANG_DAMP=.75,V_EPS=.02,W_EPS=.002;
 let dragMoved=false;
 
@@ -269,8 +269,9 @@ const setFrom=arr=>new Set(arr.map(w=>w));
 const randomFrom=arr=>arr[floor(random(arr.length))];
 
 // language selection
-let selectedLangs = new Set(LANG_ORDER); // default all
+let selectedLangs = new Set(LANG_ORDER);
 
+// ===== Magnet class =====
 class Magnet{
   constructor(pos,val,ang=0){
     this.pos=pos.copy();
@@ -494,7 +495,7 @@ function rebuildLexiconFromSelection(){
   makeBackground(glyphs);
 }
 
-// poem
+// ===== Poem builder =====
 function makeEightWordPoem(){
   for(let m of magnets){
     if(m.isInPoem){
@@ -507,6 +508,7 @@ function makeEightWordPoem(){
   }
   const template=randomFrom(TEMPLATES_8);
   let chosenWords=template.map(tag=>pickFromPOS(tag));
+
   // avoid same noun twice in a row
   for(let i=0;i<template.length;i++){
     if(template[i]==="NOUN"&&i>0&&template[i-1]==="NOUN"&&chosenWords[i-1]===chosenWords[i]){
@@ -539,6 +541,7 @@ function makeEightWordPoem(){
   const surface=last.getDisplayText();
   last.displaySuffix=/[A-Za-z]/.test(surface)?".":"。";
   chosenMagnets.forEach(m=>m.updateDimensions());
+
   const gap=12*scaler;
   const totalW=chosenMagnets.reduce((s,m)=>s+m.dim.x,0)+gap*(chosenMagnets.length-1);
   let x=-totalW/2;
@@ -558,15 +561,40 @@ function shufflePoem(){
   StorageShim.set(STORAGE_KEY, magnets);
 }
 
-// magnets
+// ===== Magnets spawning: limit + inner area =====
 function makeMagnets(){
   magnets=[];
-  for(let w of words){
+  // choose words for magnets
+  let pool = words.slice();
+  if(isMobile()){
+    const maxMagnets = 70; // limit on mobile
+    if(pool.length>maxMagnets){
+      const picked=[];
+      while(picked.length<maxMagnets){
+        const idx=floor(random(pool.length));
+        picked.push(pool[idx]);
+        pool.splice(idx,1);
+      }
+      pool=picked;
+    }
+  }
+  // spawn inside an inner rectangle (avoid edges)
+  const marginX = width * 0.18;
+  const marginY = height * 0.18;
+  const xMin = -width/2 + marginX;
+  const xMax =  width/2 - marginX;
+  const yMin = -height/2 + marginY;
+  const yMax =  height/2 - marginY;
+
+  for(let w of pool){
     let pos=createVector(0,0);
+    let tries=0;
     do{
-      pos.x=random(-.48*width,.48*width);
-      pos.y=random(-.48*height,.48*height);
-    }while (abs(pos.y)<centerBandPx+30 || abs(pos.x)<0.12*width);
+      pos.x=random(xMin,xMax);
+      pos.y=random(yMin,yMax);
+      tries++;
+      if(tries>40) break; // give up and accept near center
+    }while (abs(pos.y)<centerBandPx+30);
     const ang=random(-PI/32,PI/32);
     magnets.push(new Magnet(pos,w,ang));
   }
@@ -595,7 +623,6 @@ function initHomesFromCurrentPos(){
 
 // UI drawing
 function drawButtonsUI(){
-  // hide canvas buttons on small screens (mobile toolbar takes over)
   if(isMobile()) return;
   push();
   noStroke();
@@ -616,15 +643,31 @@ function hit(r,x,y){
 // choose canvas size depending on device
 function chooseCanvasSize(){
   if(isMobile()){
-    // Make the canvas a bit narrower and much taller
-    const cw = Math.min(windowWidth - 40, 360);     // slimmer card
-    const ch = Math.min(windowHeight * 0.8, cw * 2.2); // more vertical (≈ 1:2.2)
-    return { w: cw, h: ch };
-  } else {
-    return { w: windowWidth, h: windowHeight };
+    const cw = Math.min(windowWidth - 40, 360);       // slimmer
+    const ch = Math.min(windowHeight * 0.8, cw * 2.2); // tall, vertical
+    return {w: cw, h: ch};
+  }else{
+    return {w: windowWidth, h: windowHeight};
   }
 }
 
+// scaler: smaller on mobile
+function updateScaler(){
+  if(isMobile()){
+    scaler = 0.5;        // smaller magnets
+  }else{
+    scaler = height / 628;
+  }
+  recomputeCenterBand();
+  if(Array.isArray(magnets)){
+    for(let m of magnets){
+      m.scaler = scaler;
+      m.paddingX = 10*scaler;
+      m.paddingY = 7*scaler;
+      m.updateDimensions();
+    }
+  }
+}
 
 // p5 lifecycle
 function setup(){
@@ -633,19 +676,18 @@ function setup(){
   canvas.style('display','block');
   canvas.style('margin','0 auto');
 
-  scaler=height/628;
+  updateScaler();
   noSmooth();
-  recomputeCenterBand();
 
   loadLangSelection();
   updateLangCheckboxes();
   hookLangCheckboxes();
   hookMobileButtons();
-  hookLangPanelSwipe();   // <— swipe gestures
+  hookLangPanelSwipe();
 
   rebuildLexiconFromSelection();
   makeMagnets();
-  for(let i=0;i<10;i++) spreadMagnets();
+  spreadMagnets();
   initHomesFromCurrentPos();
   makeEightWordPoem();
   textSize(16*scaler);
@@ -664,7 +706,6 @@ function draw(){
 }
 function mousePressed(){
   dragMoved=false;
-  // desktop buttons only
   if(!isMobile()){
     if(hit(UI.shuffle,mouseX,mouseY)){shufflePoem();return}
     if(hit(UI.reset,mouseX,mouseY)){resetEverything();return}
@@ -746,15 +787,19 @@ function resetEverything(){
   StorageShim.remove(STORAGE_KEY);
   rebuildLexiconFromSelection();
   makeMagnets();
+  spreadMagnets();
   initHomesFromCurrentPos();
   makeEightWordPoem();
 }
 function windowResized(){
   const size = chooseCanvasSize();
   resizeCanvas(size.w, size.h);
-  scaler=height/628;
-  recomputeCenterBand();
+  updateScaler();
   rebuildLexiconFromSelection();
+  makeMagnets();
+  spreadMagnets();
+  initHomesFromCurrentPos();
+  makeEightWordPoem();
 }
 
 // language panel
@@ -766,15 +811,17 @@ function hookLangCheckboxes(){
     saveLangSelection();
     rebuildLexiconFromSelection();
     makeMagnets();
+    spreadMagnets();
     initHomesFromCurrentPos();
     makeEightWordPoem();
   };
   document.getElementById('noneBtn').onclick=()=>{
-    selectedLangs=new Set(); // will get forced to EN on rebuild
+    selectedLangs=new Set();
     updateLangCheckboxes();
     saveLangSelection();
     rebuildLexiconFromSelection();
     makeMagnets();
+    spreadMagnets();
     initHomesFromCurrentPos();
     makeEightWordPoem();
   };
@@ -790,6 +837,7 @@ function hookLangCheckboxes(){
       saveLangSelection();
       rebuildLexiconFromSelection();
       makeMagnets();
+      spreadMagnets();
       initHomesFromCurrentPos();
       makeEightWordPoem();
     });
@@ -822,7 +870,7 @@ function hookLangPanelSwipe(){
 
   let startY=null;
   let fromPanel=false;
-  const threshold=50; // pixels
+  const threshold=50;
 
   document.addEventListener('touchstart',e=>{
     if(e.touches.length!==1) return;
@@ -841,7 +889,7 @@ function hookLangPanelSwipe(){
     if(dy>threshold && fromPanel && !collapsed){
       panel.classList.add('collapsed');
     }
-    // swipe up anywhere to open (when collapsed)
+    // swipe up anywhere to open
     if(dy<-threshold && collapsed){
       panel.classList.remove('collapsed');
     }
