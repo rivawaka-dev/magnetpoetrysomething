@@ -545,7 +545,7 @@ function makeEightWordPoem(){
   const gap=12*scaler;
   const totalW=chosenMagnets.reduce((s,m)=>s+m.dim.x,0)+gap*(chosenMagnets.length-1);
   let x=-totalW/2;
-  const y=0;
+  const y = poemCenterY();
   for(let m of magnets)m.isInPoem=false;
   for(let m of chosenMagnets){
     m.isInPoem=true;
